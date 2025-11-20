@@ -19,55 +19,60 @@
 
     /*************** Configuration ***************/
 
-    // ✅ Selector configuration based on the provided HTML structure
     const CONFIG = {
         // The main container for the right sidebar recommendations
         containerSelector: '.recommend-list-v1',
+        // The "Expand" button at the bottom of the list
+        expandBtnSelector: '.recommend-list-v1 .rec-footer',
         // The specific link inside the card that points to the creator's space
-        // Captures both ".next-play" and ".rec-list" items
         upLinkSelector: '.video-page-card-small .upname a',
         // Interval between API requests (ms) to avoid rate limiting
-        blockInterval: 300
+        blockInterval: 300,
+        // Time to wait after clicking "Expand" (ms)
+        expandWaitTime: 1500
     };
 
     /*************** Initialization ***************/
 
-    // Get CSRF token from cookies (Required for API calls)
     const getCsrfToken = () => {
         const match = document.cookie.match(/bili_jct=([^;]+)/);
         return match ? match[1] : null;
     };
 
     const csrf_token = getCsrfToken();
-    if (!csrf_token) {
-        console.warn("⚠️ bili_jct not found. Please ensure you are logged in.");
-    }
 
     /*************** Utility Functions ***************/
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    /**
-     * Parse UID from a Bilibili Space URL
-     * Handles formats like: //space.bilibili.com/123456/
-     */
     const parseUidFromUrl = (url) => {
         const match = url.match(/space\.bilibili\.com\/(\d+)/);
         return match ? match[1] : null;
     };
 
-    /*************** Logic: Block User ***************/
+    /*************** Logic: Actions ***************/
 
-    /**
-     * Sends a block request to Bilibili API for a specific UID
-     * @param {string} uid - The user ID to block
-     */
+    // New function: Auto click the expand button
+    async function expandListIfNeeded() {
+        const expandBtn = document.querySelector(CONFIG.expandBtnSelector);
+
+        // Check if button exists and is visible (not display: none)
+        if (expandBtn && expandBtn.offsetParent !== null) {
+            console.log('🔽 Found "Expand" button. Clicking...');
+            expandBtn.click();
+            // Wait for DOM to update
+            await sleep(CONFIG.expandWaitTime);
+        } else {
+            console.log('ℹ️ "Expand" button not found or already expanded.');
+        }
+    }
+
     async function blockUser(uid) {
         if (!csrf_token) return { success: false, msg: "Not Logged In" };
 
         const body = new URLSearchParams({
             fid: uid,
-            act: 5, // 5 = Block action
+            act: 5, // 5 = Block
             re_src: 11,
             jsonp: 'jsonp',
             csrf: csrf_token
@@ -95,70 +100,56 @@
         }
     }
 
-    /*************** Logic: Extract UIDs ***************/
-
-    /**
-     * Scans the DOM for UIDs in the recommendation list
-     */
     function getRecommendationUids() {
         const container = document.querySelector(CONFIG.containerSelector);
-        if (!container) {
-            alert(`❌ Container not found (${CONFIG.containerSelector}). Page structure might have changed.`);
-            return [];
-        }
+        if (!container) return [];
 
-        // Find all Up Owner links within the cards
         const links = container.querySelectorAll(CONFIG.upLinkSelector);
         const uids = new Set();
 
         links.forEach(link => {
-            // link.href returns the full resolved URL (https://...)
             const uid = parseUidFromUrl(link.href);
-            if (uid) {
-                uids.add(uid);
-            }
+            if (uid) uids.add(uid);
         });
 
-        console.log(`📥 Found ${uids.size} unique creators in the list.`);
+        console.log(`📥 Found ${uids.size} unique creators.`);
         return Array.from(uids);
     }
 
     /*************** Main Workflow ***************/
 
     async function startBatchBlock() {
-        // 1. Check login
         if (!csrf_token) {
             alert("Please login to Bilibili first.");
             return;
         }
 
-        // 2. Extract UIDs
+        // Step 1: Auto Expand
+        await expandListIfNeeded();
+
+        // Step 2: Extract UIDs
         const uidArray = getRecommendationUids();
         if (uidArray.length === 0) {
-            alert('⚠️ No creators found. Wait for the list to load or scroll down slightly.');
+            alert('⚠️ No creators found. Please check page structure.');
             return;
         }
 
-        // 3. User Confirmation
-        const confirmMsg = `Found ${uidArray.length} creators in "Up Next" & Recommendations.\n\nAre you sure you want to BLOCK them all?`;
+        // Step 3: Confirm
+        const confirmMsg = `Found ${uidArray.length} creators (List Expanded).\n\nAre you sure you want to BLOCK them all?`;
         if (!confirm(confirmMsg)) return;
 
-        // 4. Create Status UI
+        // Step 4: Process
         const statusDiv = createStatusOverlay();
         let successCount = 0;
 
-        // 5. Batch Process
         for (let i = 0; i < uidArray.length; i++) {
             const uid = uidArray[i];
             statusDiv.innerText = `Blocking: ${i + 1}/${uidArray.length}\nUID: ${uid}`;
-
             const result = await blockUser(uid);
             if (result.success) successCount++;
-
             await sleep(CONFIG.blockInterval);
         }
 
-        // 6. Cleanup
         statusDiv.remove();
         alert(`✅ Batch block complete.\nSuccessfully blocked: ${successCount}/${uidArray.length}`);
     }
@@ -179,7 +170,6 @@
             zIndex: 100001,
             textAlign: 'center',
             fontSize: '16px',
-            fontFamily: 'sans-serif',
             boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
         });
         document.body.appendChild(div);
@@ -187,15 +177,14 @@
     }
 
     function createStartButton() {
-        // Prevent duplicate buttons
         if (document.getElementById('batch-block-btn')) return;
 
         const btn = document.createElement('button');
         btn.id = 'batch-block-btn';
-        btn.textContent = '🚫 Block List';
+        btn.textContent = '🚫 Block All';
         Object.assign(btn.style, {
             position: 'fixed',
-            top: '150px', // Adjusted position to not overlap with header
+            top: '150px',
             right: '0px',
             padding: '8px 12px',
             backgroundColor: '#FF6699',
@@ -217,10 +206,7 @@
         document.body.appendChild(btn);
     }
 
-    /*************** Entry Point ***************/
-
     window.addEventListener('load', () => {
-        // Delay slightly to allow dynamic content to initialize
         setTimeout(createStartButton, 2000);
     });
 
