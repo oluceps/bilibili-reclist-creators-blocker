@@ -7,4 +7,4 @@
 <img width="1120" height="965" alt="image" src="https://github.com/user-attachments/assets/0803afca-cfdc-4894-8ebb-2beb0814a19a" />
 <img width="989" height="410" alt="image" src="https://github.com/user-attachments/assets/b2d57745-fae0-404a-8a9c-b82b52895866" />
 
-> 建议搭配 Bilibili Evolved 插件屏蔽首页推荐的黑名单创作者使用
+> 建议搭配 Bilibili Evolved 插件屏蔽首页推荐的黑名单创作者使用。另粉丝量<1万，黑名单上限为1000；粉丝量≥1万，黑名单上限为10000，硬核会员翻倍。
